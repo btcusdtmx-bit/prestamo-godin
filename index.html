@@ -57,6 +57,9 @@
 </style>
 </head>
 <body>
+  <button onclick="guardarClientePrueba()">
+Guardar Cliente
+</button>
 
 <!-- LOGIN -->
 <div id="login-overlay">
@@ -355,6 +358,34 @@ const supabaseClient = supabase.createClient(
 )
 
 console.log("Supabase conectado")
+
+</script>
+  <script>
+
+async function guardarClientePrueba() {
+
+  const { data, error } = await supabaseClient
+    .from('clientes')
+    .insert([
+      {
+        nombre: 'Nora',
+        telefono: '5555555555',
+        direccion: 'México',
+        estatus: 'activo'
+      }
+    ])
+
+  if(error){
+    console.error(error)
+    alert("Error guardando cliente")
+    return
+  }
+
+  console.log(data)
+
+  alert("Cliente guardado correctamente")
+
+}
 
 </script>
 </body>
