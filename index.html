@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema Socios 2026</title>
+<style>
+  :root { --primary: #2563eb; --success: #059669; --warning: #d97706; --danger: #dc2626; --gray-100: #f3f4f6; --gray-800: #1f2937; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--gray-100); color: #333; }
+  
+  /* LOGIN */
+  #login-overlay { position: fixed; inset: 0; background: #111; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+  .login-box { background: white; padding: 2rem; border-radius: 12px; width: 320px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+  .login-box h2 { margin: 0 0 1rem; text-align: center; }
+  input, select { width: 100%; padding: 10px; margin: 6px 0 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+  button { width: 100%; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-outline { background: transparent; border: 1px solid #ccc; color: #555; }
+  #login-error { color: var(--danger); font-size: 13px; text-align: center; display: none; margin-top: 8px; }
+
+  /* APP LAYOUT */
+  #app-container { display: flex; min-height: 100vh; display: none; }
+  aside { width: 240px; background: var(--gray-800); color: white; padding: 20px; position: fixed; height: 100%; overflow-y: auto; }
+  aside h3 { margin: 0 0 5px; font-size: 16px; }
+  aside p { color: #aaa; font-size: 12px; margin: 0 0 20px; }
+  .nav-item { padding: 10px 12px; margin-bottom: 4px; cursor: pointer; border-radius: 6px; color: #ccc; display: flex; align-items: center; gap: 10px; }
+  .nav-item:hover, .nav-item.active { background: #374151; color: white; }
+  .nav-item.logout { color: #f87171; margin-top: 20px; border-top: 1px solid #374151; padding-top: 12px; }
+  
+  main { flex: 1; margin-left: 240px; padding: 24px; }
+  .section { display: none; animation: fadeIn 0.3s; }
+  .section.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* COMPONENTS */
+  .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .stat-box { background: white; padding: 16px; border-radius: 8px; border-left: 4px solid var(--primary); }
+  .stat-box.green { border-left-color: var(--success); }
+  .stat-box.orange { border-left-color: var(--warning); }
+  .stat-label { font-size: 12px; color: #666; text-transform: uppercase; }
+  .stat-value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+  th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: left; }
+  th { background: #f9fafb; color: #666; font-weight: 600; font-size: 12px; }
+  .badge { padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+  .bg-active { background: #dcfce7; color: #166534; }
+  .bg-closed { background: #f1f5f9; color: #475569; }
+  .admin-only { display: none; } /* Se activa si es Kike */
+
+  /* MODAL */
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000; }
+  .modal-box { background: white; padding: 24px; border-radius: 12px; width: 350px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-overlay">
+  <div class="login-box">
+    <h2>🔐 Acceso Socios</h2>
+    <input type="text" id="user" placeholder="Usuario (ej: kike)">
+    <input type="password" id="pass" placeholder="Contraseña">
+    <button class="btn-primary" onclick="login()">Ingresar</button>
+    <div id="login-error">Usuario o contraseña incorrectos</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-container">
+  <aside>
+    <h3>💰 Préstamos 2026</h3>
+    <p id="user-role">Cargando...</p>
+    <div class="nav-item active" onclick="show('dashboard')">📊 Centro de Operación</div>
+    <div class="nav-item" onclick="show('clientes')">👥 Clientes Activos</div>
+    <div class="nav-item admin-only" onclick="show('pagos')">💳 Registrar Pago</div>
+    <div class="nav-item" onclick="show('reportes')">📈 Reportes del Negocio</div>
+    <div class="nav-item" onclick="show('inversionistas')">💎 Rendimientos Socios</div>
+    <div class="nav-item" onclick="openPassModal()">🔑 Cambiar Contraseña</div>
+    <div class="nav-item logout" onclick="logout()">🚪 Cerrar Sesión</div>
+  </aside>
+
+  <main>
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="section active">
+      <h2>📊 Centro de Operación Diaria</h2>
+      <div class="stats">
+        <div class="stat-box"><div class="stat-label">Caja Disponible</div><div class="stat-value" id="d-caja">$0</div></div>
+        <div class="stat-box green"><div class="stat-label">Ganancia Total (Intereses)</div><div class="stat-value" id="d-ganancia">$0</div></div>
+        <div class="stat-box orange"><div class="stat-label">Dinero en Calle</div><div class="stat-value" id="d-calle">$0</div></div>
+      </div>
+      <div class="card">
+        <h3>⚠️ Alertas de Pagos Vencidos</h3>
+        <div id="alertas-list" style="margin-top:10px; color:#666;">Cargando...</div>
+      </div>
+    </div>
+
+    <!-- CLIENTES -->
+    <div id="clientes" class="section">
+      <h2>👥 Cartera de Clientes</h2>
+      <input type="text" id="search-c" placeholder="🔍 Buscar cliente..." onkeyup="renderClientes()">
+      <div class="card">
+        <table id="tabla-clientes">
+          <thead><tr><th>Cliente</th><th>Saldo Actual</th><th>Estado</th><th>Próximo Pago</th><th>Interés (10%)</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PAGOS (ADMIN) -->
+    <div id="pagos" class="section admin-only">
+      <h2>💳 Registrar Pago</h2>
+      <div class="card" style="max-width:500px;">
+        <label>Seleccionar Cliente Activo</label>
+        <select id="pay-select"></select>
+        <label>Monto Interés</label>
+        <input type="number" id="pay-int" placeholder="0.00">
+        <label>Monto Capital</label>
+        <input type="number" id="pay-cap" placeholder="0.00">
+        <button class="btn-primary" style="background:var(--success); margin-top:15px;" onclick="registrarPago()">✅ Confirmar Pago</button>
+      </div>
+    </div>
+
+    <!-- REPORTES -->
+    <div id="reportes" class="section">
+      <h2>📈 Reportes del Negocio</h2>
+      <div class="stats">
+        <div class="stat-box green"><div class="stat-label">Total Cobrado Histórico</div><div class="stat-value" id="r-cobrado">$0</div></div>
+        <div class="stat-box orange"><div class="stat-label">Total Prestado/Reinvertido</div><div class="stat-value" id="r-prestado">$0</div></div>
+      </div>
+      <div class="card">
+        <h3>💰 Estado de Caja Detallado</h3>
+        <table style="margin-top:10px;">
+          <tr><td>Caja Actual (Banco)</td><td id="caja-det" style="text-align:right; font-weight:bold;"></td></tr>
+          <tr><td>Capital Aportado por Socios</td><td style="text-align:right;">$52,500.00</td></tr>
+          <tr><td>ROI Global</td><td id="roi-glob" style="text-align:right; font-weight:bold; color:var(--success);"></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- INVERSIONISTAS -->
+    <div id="inversionistas" class="section">
+      <h2>💎 Rendimientos por Socio (14.29% c/u)</h2>
+      <div class="card">
+        <table id="tabla-socios">
+          <thead><tr><th>Socio</th><th>Capital Aportado</th><th>Ganancia Acumulada</th><th>ROI Individual</th><th>Estado</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL CAMBIO PASS -->
+<div id="modal">
+  <div class="modal-box">
+    <h3 style="margin:0 0 15px;">🔑 Cambiar Contraseña</h3>
+    <input type="password" id="cp-old" placeholder="Contraseña Actual">
+    <input type="password" id="cp-new" placeholder="Nueva Contraseña">
+    <button class="btn-primary" onclick="savePass()">Guardar Cambios</button>
+    <button class="btn-outline" style="margin-top:10px;" onclick="closePassModal()">Cancelar</button>
+  </div>
+</div>
+
+<script>
+// ==========================================
+// DATOS INICIALES (EXACTAMENTE DEL EXCEL)
+// ==========================================
+const INITIAL_DB = {
+  caja: 1723.21,
+  interesesTotales: 36890.93,
+  totalCobrado: 93723.21,
+  totalPrestado: 144500.00,
+  clientes: [
+    { id: 1, nombre: "Sandibell", saldo: 1000, activo: true, proximo: "2026-07-07" },
+    { id: 2, nombre: "Yola", saldo: 1150, activo: true, proximo: "2026-07-01" },
+    { id: 3, nombre: "Madi", saldo: 3333.33, activo: true, proximo: "2026-07-05" },
+    { id: 4, nombre: "Manuel Andrade", saldo: 5000, activo: true, proximo: "2026-07-15" },
+    { id: 5, nombre: "Carlos Rodriguez (2)", saldo: 5000, activo: true, proximo: "2026-07-02" },
+    { id: 6, nombre: "Rosa", saldo: 2500, activo: true, proximo: "2026-08-15" },
+    { id: 7, nombre: "Yasmin (2)", saldo: 5000, activo: true, proximo: "2026-07-18" },
+    { id: 8, nombre: "Nora 2", saldo: 1500, activo: true, proximo: "2026-07-04" },
+    { id: 9, nombre: "Karina", saldo: 0, activo: false, proximo: null },
+    { id: 10, nombre: "Marisol", saldo: 0, activo: false, proximo: null },
+    { id: 11, nombre: "Nora", saldo: 0, activo: false, proximo: null }
+  ]
+};
+
+const INITIAL_USERS = [
+  { u: 'kike', p: 'Kike2026!', r: 'admin', n: 'Kike' },
+  { u: 'vianey', p: 'Vianey2026!', r: 'visor', n: 'Vianey' },
+  { u: 'pedro', p: 'Pedro2026!', r: 'visor', n: 'Pedro' },
+  { u: 'paty', p: 'Paty2026!', r: 'visor', n: 'Paty' },
+  { u: 'maru', p: 'Maru2026!', r: 'visor', n: 'Maru' },
+  { u: 'axel', p: 'Axel2026!', r: 'visor', n: 'Axel' },
+  { u: 'itzel', p: 'Itzel2026!', r: 'visor', n: 'Itzel' }
+];
+
+// ==========================================
+// LÓGICA DEL SISTEMA
+// ==========================================
+let db = JSON.parse(localStorage.getItem('prestamos_db')) || INITIAL_DB;
+let users = JSON.parse(localStorage.getItem('prestamos_users')) || INITIAL_USERS;
+let currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
+
+function saveDB() { localStorage.setItem('prestamos_db', JSON.stringify(db)); }
+function saveUsers() { localStorage.setItem('prestamos_users', JSON.stringify(users)); }
+
+function login() {
+  const u = document.getElementById('user').value.toLowerCase().trim();
+  const p = document.getElementById('pass').value;
+  const found = users.find(x => x.u === u && x.p === p);
+  if(found) {
+    currentUser = found;
+    sessionStorage.setItem('currentUser', JSON.stringify(found));
+    initApp();
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
+
+function initApp() {
+  document.getElementById('login-overlay').style.display = 'none';
+  document.getElementById('app-container').style.display = 'flex';
+  document.getElementById('user-role').textContent = `👤 ${currentUser.n} (${currentUser.r === 'admin' ? 'ADMIN' : 'VISOR'})`;
+  if(currentUser.r === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+  show('dashboard');
+}
+
+function logout() { sessionStorage.removeItem('currentUser'); location.reload(); }
+
+function show(viewId) {
+  document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+  document.getElementById(viewId).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  
+  if(viewId === 'dashboard') renderDashboard();
+  if(viewId === 'clientes') renderClientes();
+  if(viewId === 'pagos') renderPagos();
+  if(viewId === 'reportes') renderReportes();
+  if(viewId === 'inversionistas') renderInversionistas();
+}
+
+function fmt(n) { return '$' + parseFloat(n).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+// DASHBOARD
+function renderDashboard() {
+  const activos = db.clientes.filter(c => c.activo);
+  const calle = activos.reduce((a,b) => a + b.saldo, 0);
+  document.getElementById('d-caja').textContent = fmt(db.caja);
+  document.getElementById('d-ganancia').textContent = fmt(db.interesesTotales);
+  document.getElementById('d-calle').textContent = fmt(calle);
+
+  const hoy = new Date();
+  const vencidos = activos.filter(c => new Date(c.proximo) < hoy);
+  const box = document.getElementById('alertas-list');
+  box.innerHTML = vencidos.length ? vencidos.map(c => `<div style="background:#fee2e2; padding:10px; border-radius:6px; margin-bottom:6px; color:#b91c1c;">🚨 <strong>${c.nombre}</strong> venció el ${c.proximo}</div>`).join('') : '<p style="color:var(--success);">✅ Todo al corriente. Sin pagos vencidos.</p>';
+}
+
+// CLIENTES
+function renderClientes() {
+  const q = document.getElementById('search-c').value.toLowerCase();
+  const tbody = document.querySelector('#tabla-clientes tbody');
+  tbody.innerHTML = '';
+  db.clientes.filter(c => c.nombre.toLowerCase().includes(q)).forEach(c => {
+    const int10 = (c.saldo * 0.10).toFixed(2);
+    const badge = c.activo ? 'bg-active' : 'bg-closed';
+    const txt = c.activo ? 'Activo' : 'Liquidado';
+    tbody.innerHTML += `<tr><td>${c.nombre}</td><td>${fmt(c.saldo)}</td><td><span class="badge ${badge}">${txt}</span></td><td>${c.proximo || '—'}</td><td>${fmt(int10)}</td></tr>`;
+  });
+}
+
+// PAGOS (ADMIN)
+function renderPagos() {
+  const sel = document.getElementById('pay-select');
+  sel.innerHTML = '<option value="">Seleccionar...</option>';
+  db.clientes.filter(c => c.activo).forEach(c => {
+    sel.innerHTML += `<option value="${c.id}">${c.nombre} (Saldo: ${fmt(c.saldo)})</option>`;
+  });
+}
+
+function registrarPago() {
+  const id = parseInt(document.getElementById('pay-select').value);
+  const int = parseFloat(document.getElementById('pay-int').value) || 0;
+  const cap = parseFloat(document.getElementById('pay-cap').value) || 0;
+  if(!id || cap <= 0) return alert('Selecciona un cliente e ingresa montos válidos.');
+  
+  const c = db.clientes.find(x => x.id === id);
+  c.saldo -= cap;
+  if(c.saldo <= 0.1) { c.saldo = 0; c.activo = false; c.proximo = null; }
+  
+  db.caja += (int + cap);
+  db.interesesTotales += int;
+  db.totalCobrado += (int + cap);
+  saveDB();
+  alert('✅ Pago registrado. Caja actualizada.');
+  document.getElementById('pay-int').value = '';
+  document.getElementById('pay-cap').value = '';
+  show('dashboard');
+}
+
+// REPORTES
+function renderReportes() {
+  document.getElementById('r-cobrado').textContent = fmt(db.totalCobrado);
+  document.getElementById('r-prestado').textContent = fmt(db.totalPrestado);
+  document.getElementById('caja-det').textContent = fmt(db.caja);
+  const roi = ((db.interesesTotales / 52500) * 100).toFixed(1);
+  document.getElementById('roi-glob').textContent = roi + '%';
+}
+
+// INVERSIONISTAS
+function renderInversionistas() {
+  const socios = ['VIANEY','PEDRO','PATY','MARU','KIKE','AXEL','ITZEL'];
+  const porSocio = db.interesesTotales / 7;
+  const roiInd = ((porSocio / 7500) * 100).toFixed(1);
+  const tbody = document.querySelector('#tabla-socios tbody');
+  tbody.innerHTML = '';
+  socios.forEach(s => {
+    tbody.innerHTML += `<tr><td>${s}</td><td>$7,500.00</td><td style="color:var(--success); font-weight:bold;">${fmt(porSocio)}</td><td>${roiInd}%</td><td><span class="badge bg-active">Activo</span></td></tr>`;
+  });
+}
+
+// CAMBIO CONTRASEÑA
+function openPassModal() { document.getElementById('modal').style.display = 'flex'; }
+function closePassModal() { document.getElementById('modal').style.display = 'none'; }
+function savePass() {
+  const old = document.getElementById('cp-old').value;
+  const newP = document.getElementById('cp-new').value;
+  const u = users.find(x => x.u === currentUser.u);
+  if(u.p !== old) return alert('❌ Contraseña actual incorrecta');
+  if(newP.length < 6) return alert('❌ Mínimo 6 caracteres');
+  u.p = newP;
+  saveUsers();
+  alert('✅ Contraseña actualizada');
+  closePassModal();
+}
+
+// INICIAR SI YA HAY SESIÓN
+if(currentUser) initApp();
+</script>
+</body>
+</html>
